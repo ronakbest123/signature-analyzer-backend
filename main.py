@@ -40,18 +40,21 @@ def _call_openai(b64: str) -> str:
 
     resp = client.chat.completions.create(
         model="gpt-4o-mini",
-        messages=[
-            {
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": prompt},
-                    {
-                        "type": "image_url",
-                        "image_url": {"url": f"data:image/jpeg;base64,{b64}"},
-                    },
-                ],
-            }
-        ],
+       {"type": "text", "text":
+"Analyze this handwritten signature image.\n\n"
+"Infer probable personality and communication tendencies.\n"
+"Avoid absolute or diagnostic claims.\n\n"
+"Return valid JSON only with the following structure:\n"
+"{\n"
+"  \"tendencies\": [string, string, string],\n"
+"  \"strengths\": [string, string],\n"
+"  \"challenge\": string,\n"
+"  \"confidence\": \"Low\" | \"Medium\" | \"High\",\n"
+"  \"disclaimer\": string\n"
+"}\n\n"
+"Do not include any text outside the JSON."
+}
+
         max_tokens=300,
     )
     return resp.choices[0].message.content
