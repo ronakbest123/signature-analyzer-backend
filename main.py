@@ -38,21 +38,19 @@ def _call_openai(b64: str) -> str:
         "- Disclaimer (one line)\n"
     )
 
-    resp = client.chat.completions.create(
-        model="gpt-4o-mini",
-       {"type": "text", "text":
-"Analyze this handwritten signature image.\n\n"
-"Infer probable personality and communication tendencies.\n"
-"Avoid absolute or diagnostic claims.\n\n"
-"Return valid JSON only with the following structure:\n"
+  {"type": "text", "text":
+"You are an API that returns STRICT JSON.\n"
+"Analyze the handwritten signature image and infer probable personality tendencies.\n"
+"Do not make diagnostic or absolute claims.\n\n"
+"Return ONLY valid JSON with NO markdown, NO explanations, and NO extra text.\n\n"
+"The JSON schema MUST be exactly:\n"
 "{\n"
 "  \"tendencies\": [string, string, string],\n"
 "  \"strengths\": [string, string],\n"
 "  \"challenge\": string,\n"
 "  \"confidence\": \"Low\" | \"Medium\" | \"High\",\n"
 "  \"disclaimer\": string\n"
-"}\n\n"
-"Do not include any text outside the JSON."
+"}"
 }
 
         max_tokens=300,
