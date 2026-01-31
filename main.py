@@ -1,15 +1,14 @@
 import io
 import os
 import base64
+import asyncio
 from fastapi import FastAPI, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from PIL import Image
-import openai
+from openai import OpenAI
 
-# Initialize app
 app = FastAPI()
 
-# CORS (safe for project/demo)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -17,18 +16,51 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# OpenAI key from Render env
-openai.api_key = os.getenv("OPENAI_API_KEY")
+client = OpenAI(
+    api_key=os.getenv("OPENAI_API_KEY"),
+    timeout=30.0,   # prevents “infinite loading”
+)
 
 @app.get("/")
 def root():
     return {"status": "Signature Analyzer API is running"}
 
+def _call_openai(b64: str) -> str:
+    prompt = (
+        "Analyze this handwritten signature image. "
+        "Infer probable personality and communication tendencies. "
+        "Avoid absolute or diagnostic claims.\n\n"
+        "Output format:\n"
+        "- 3 Probable Tendencies\n"
+        "- 2 Strengths\n"
+        "- 1 Possible Challenge\n"
+        "- Confidence: Low/Medium/High\n"
+        "- Disclaimer (one line)\n"
+    )
+
+    resp = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": prompt},
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": f"data:image/jpeg;base64,{b64}"},
+                    },
+                ],
+            }
+        ],
+        max_tokens=300,
+    )
+    return resp.choices[0].message.content
+
 @app.post("/analyze")
 async def analyze(file: UploadFile = File(...)):
     img_bytes = await file.read()
 
-    # Resize & compress image
+    # Resize + compress (keeps Render happy)
     image = Image.open(io.BytesIO(img_bytes)).convert("RGB")
     image.thumbnail((512, 512))
 
@@ -36,40 +68,7 @@ async def analyze(file: UploadFile = File(...)):
     image.save(buffer, format="JPEG", quality=80)
     b64 = base64.b64encode(buffer.getvalue()).decode("utf-8")
 
-    response = openai.ChatCompletion.create(
-        model="gpt-4o-mini",
-        messages=[
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "text",
-                        "text": (
-                            "Analyze this handwritten signature image. "
-                            "Infer probable personality and communication tendencies. "
-                            "Avoid absolute or diagnostic claims.\n\n"
-                            "Output format:\n"
-                            "- 3 Probable Tendencies\n"
-                            "- 2 Strengths\n"
-                            "- 1 Possible Challenge\n"
-                            "- Confidence: Low/Medium/High\n"
-                            "- Disclaimer (one line)\n"
-                        )
-                    },
-                    {
-                        "type": "image_url",
-                        "image_url": {
-                            "url": f"data:image/jpeg;base64,{b64}"
-                        }
-                    }
-                ]
-            }
-        ],
-        max_tokens=300,
-        request_timeout=20
-    )
+    # Run OpenAI call off the event loop
+    text = await asyncio.to_thread(_call_openai, b64)
 
-    return {
-        "analysis": response["choices"][0]["message"]["content"]
-    }
-
+    return {"analysis": text}
