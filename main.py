@@ -1,3 +1,29 @@
+import io
+import os
+import base64
+from fastapi import FastAPI, File, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
+from PIL import Image
+import openai
+
+# Initialize app
+app = FastAPI()
+
+# CORS (safe for project/demo)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# OpenAI key from Render env
+openai.api_key = os.getenv("OPENAI_API_KEY")
+
+@app.get("/")
+def root():
+    return {"status": "Signature Analyzer API is running"}
+
 @app.post("/analyze")
 async def analyze(file: UploadFile = File(...)):
     img_bytes = await file.read()
@@ -16,16 +42,19 @@ async def analyze(file: UploadFile = File(...)):
             {
                 "role": "user",
                 "content": [
-                    {"type": "text", "text": 
-                        "Analyze this handwritten signature image. "
-                        "Infer probable personality and communication tendencies. "
-                        "Avoid absolute or diagnostic claims.\n\n"
-                        "Output format:\n"
-                        "- 3 Probable Tendencies\n"
-                        "- 2 Strengths\n"
-                        "- 1 Possible Challenge\n"
-                        "- Confidence: Low/Medium/High\n"
-                        "- Disclaimer (one line)\n"
+                    {
+                        "type": "text",
+                        "text": (
+                            "Analyze this handwritten signature image. "
+                            "Infer probable personality and communication tendencies. "
+                            "Avoid absolute or diagnostic claims.\n\n"
+                            "Output format:\n"
+                            "- 3 Probable Tendencies\n"
+                            "- 2 Strengths\n"
+                            "- 1 Possible Challenge\n"
+                            "- Confidence: Low/Medium/High\n"
+                            "- Disclaimer (one line)\n"
+                        )
                     },
                     {
                         "type": "image_url",
@@ -37,7 +66,10 @@ async def analyze(file: UploadFile = File(...)):
             }
         ],
         max_tokens=300,
-        timeout=20
+        request_timeout=20
     )
 
-    return {"analysis": response["choices"][0]["message"]["content"]}
+    return {
+        "analysis": response["choices"][0]["message"]["content"]
+    }
+
